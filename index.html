@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Osteologia — Interactive 3D Human Skeleton Atlas</title>
+<meta name="description" content="An interactive, anatomically detailed 3D atlas of all 206 bones of the human skeleton, with male and female skeletal profiles, animated gait and range-of-motion, and full clinical notes for medical students.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦴</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js",
+    "three/addons/": "./node_modules/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- ===================== LOADING ===================== -->
+<div id="loader">
+  <div class="loader-inner">
+    <div class="loader-mark">🦴</div>
+    <h1>Osteologia</h1>
+    <p class="loader-sub">Interactive Human Skeleton Atlas</p>
+    <div class="loader-bar"><div id="loaderFill"></div></div>
+    <p id="loaderMsg">Initialising…</p>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app" hidden>
+
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand-mark">🦴</span>
+      <div>
+        <h1>Osteologia</h1>
+        <span class="brand-sub">3D Skeleton Atlas · 206 bones</span>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" class="search-icon" aria-hidden="true"><path d="M21 21l-4.35-4.35M11 19a8 8 0 110-16 8 8 0 010 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="search" type="search" placeholder="Search bones, landmarks, clinical terms…" autocomplete="off" spellcheck="false">
+      <kbd>/</kbd>
+      <div id="searchResults" class="search-results" hidden></div>
+    </div>
+
+    <div class="topbar-right">
+      <div class="seg" id="sexToggle" role="radiogroup" aria-label="Skeletal profile">
+        <button data-sex="male" class="active" role="radio" aria-checked="true">♂ Male</button>
+        <button data-sex="female" role="radio" aria-checked="false">♀ Female</button>
+      </div>
+      <button id="quizBtn" class="btn ghost" title="Start identification quiz">Quiz</button>
+      <button id="helpBtn" class="btn ghost icon" title="Help &amp; shortcuts" aria-label="Help">?</button>
+    </div>
+  </header>
+
+  <!-- ---------- LEFT: navigator ---------- -->
+  <aside id="sidebar">
+    <div class="panel-head">
+      <h2>Skeletal Navigator</h2>
+      <div class="seg small" id="divToggle">
+        <button data-div="all" class="active">All</button>
+        <button data-div="axial">Axial</button>
+        <button data-div="appendicular">Appendicular</button>
+      </div>
+    </div>
+    <div id="tree" class="tree"></div>
+    <div class="panel-foot">
+      <div class="statline"><span>Bones in view</span><b id="statMeshes">—</b></div>
+      <div class="statline"><span>Stature</span><b id="statHeight">—</b></div>
+      <div class="statline"><span>Triangles</span><b id="statTris">—</b></div>
+    </div>
+  </aside>
+
+  <!-- ---------- CENTRE: viewport ---------- -->
+  <main id="viewport">
+    <canvas id="scene"></canvas>
+    <div id="labels"></div>
+
+    <div id="tooltip" class="tooltip" hidden></div>
+
+    <!-- floating view controls -->
+    <div class="view-controls">
+      <button class="vbtn" data-view="front" title="Anterior view">Ant</button>
+      <button class="vbtn" data-view="back" title="Posterior view">Post</button>
+      <button class="vbtn" data-view="left" title="Left lateral view">Lat</button>
+      <button class="vbtn" data-view="top" title="Superior view">Sup</button>
+      <button class="vbtn" data-view="reset" title="Reset camera">⟲</button>
+    </div>
+
+    <div id="quizPanel" class="quiz-panel" hidden>
+      <div class="quiz-head">
+        <span class="quiz-tag">Identification quiz</span>
+        <button id="quizClose" class="btn ghost icon" aria-label="Close quiz">×</button>
+      </div>
+      <p class="quiz-prompt">Click the <b id="quizTarget">—</b></p>
+      <div class="quiz-stats">
+        <span>Score <b id="quizScore">0</b></span>
+        <span>Streak <b id="quizStreak">0</b></span>
+        <span>Asked <b id="quizAsked">0</b></span>
+      </div>
+      <p id="quizFeedback" class="quiz-feedback"></p>
+      <button id="quizSkip" class="btn small">Skip / reveal</button>
+    </div>
+
+    <div id="fact" class="fact-strip"></div>
+  </main>
+
+  <!-- ---------- RIGHT: detail ---------- -->
+  <aside id="detail">
+    <div id="detailEmpty" class="detail-empty">
+      <div class="empty-mark">⤺</div>
+      <h3>Select a bone</h3>
+      <p>Click any bone in the model, or pick one from the navigator, to open its full anatomical record.</p>
+      <ul class="hint-list">
+        <li><kbd>Drag</kbd> orbit · <kbd>Scroll</kbd> zoom · <kbd>Right-drag</kbd> pan</li>
+        <li><kbd>/</kbd> search · <kbd>Esc</kbd> deselect · <kbd>I</kbd> isolate</li>
+        <li><kbd>Space</kbd> play/pause animation</li>
+      </ul>
+    </div>
+
+    <article id="detailCard" hidden>
+      <div class="detail-top">
+        <span id="dRegion" class="chip"></span>
+        <button id="focusBtn" class="btn small">Focus</button>
+        <button id="isolateBtn" class="btn small">Isolate</button>
+      </div>
+      <h2 id="dName"></h2>
+      <p id="dLatin" class="latin"></p>
+      <div class="factgrid">
+        <div><span>Class</span><b id="dType"></b></div>
+        <div><span>Count</span><b id="dCount"></b></div>
+        <div><span>Group</span><b id="dGroup"></b></div>
+        <div><span>Division</span><b id="dDivision"></b></div>
+      </div>
+      <p id="dDesc" class="desc"></p>
+
+      <section class="dsec"><h4>Surface landmarks</h4><ul id="dLandmarks"></ul></section>
+      <section class="dsec"><h4>Articulations</h4><ul id="dArtic"></ul></section>
+      <section class="dsec"><h4>Muscle &amp; ligament attachments</h4><ul id="dMuscles"></ul></section>
+      <section class="dsec"><h4>Ossification</h4><p id="dOssify"></p></section>
+      <section class="dsec clinical"><h4>Clinical relevance</h4><p id="dClinical"></p></section>
+      <div id="dSelected" class="selected-note"></div>
+    </article>
+  </aside>
+
+  <!-- ---------- BOTTOM: controls ---------- -->
+  <footer id="controls">
+    <div class="ctl-group">
+      <label class="ctl-label" for="animSelect">Motion</label>
+      <select id="animSelect"></select>
+      <button id="playBtn" class="btn icon" title="Play / pause (Space)">⏸</button>
+    </div>
+
+    <div class="ctl-group grow">
+      <label class="ctl-label" for="speed">Speed</label>
+      <input id="speed" type="range" min="0" max="2.5" step="0.05" value="1">
+      <output id="speedOut">1.00×</output>
+    </div>
+
+    <div class="ctl-group grow">
+      <label class="ctl-label" for="explode">Exploded view</label>
+      <input id="explode" type="range" min="0" max="100" step="1" value="0">
+      <output id="explodeOut">0%</output>
+    </div>
+
+    <div class="ctl-group">
+      <label class="ctl-label">Show</label>
+      <label class="chk"><input type="checkbox" id="softTissue" checked> Cartilage &amp; discs</label>
+      <label class="chk"><input type="checkbox" id="showLabels"> Region labels</label>
+      <label class="chk"><input type="checkbox" id="showFloor" checked> Ground</label>
+      <label class="chk"><input type="checkbox" id="xray"> X-ray</label>
+    </div>
+
+    <div id="animHint" class="anim-hint"></div>
+  </footer>
+
+  <!-- ---------- HELP MODAL ---------- -->
+  <div id="helpModal" class="modal" hidden>
+    <div class="modal-card">
+      <button id="helpClose" class="btn ghost icon modal-x" aria-label="Close">×</button>
+      <h2>About this atlas</h2>
+      <p>Every bone here is <b>generated procedurally in code</b> — there are no downloaded mesh files. Cranial vault bones are carved along the real coronal, sagittal, lambdoid and squamous sutures; long bones are swept along curved axes with rotating elliptical cross-sections; the vertebral column follows a measured sagittal curve carrying all four normal spinal curvatures.</p>
+
+      <h3>Male vs female</h3>
+      <p>Switching profiles rebuilds the entire skeleton using the differences forensic anthropologists rely on to determine sex — above all the pelvis.</p>
+      <div id="sexTable" class="sextable"></div>
+
+      <h3>Keyboard</h3>
+      <table class="keys">
+        <tr><td><kbd>/</kbd></td><td>Focus search</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Deselect / close</td></tr>
+        <tr><td><kbd>Space</kbd></td><td>Play / pause animation</td></tr>
+        <tr><td><kbd>I</kbd></td><td>Isolate selected bone</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Focus camera on selection</td></tr>
+        <tr><td><kbd>X</kbd></td><td>Toggle X-ray</td></tr>
+        <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>Anterior / posterior / lateral / superior / reset view</td></tr>
+      </table>
+
+      <h3>Sources</h3>
+      <p class="src">Anatomical descriptions, landmarks, articulations, ossification timetables and clinical notes are cross-checked against <i>Gray's Anatomy</i> (42nd ed.), <i>Moore's Clinically Oriented Anatomy</i> (8th ed.), <i>Terminologia Anatomica</i> (2nd ed.) and <i>Netter's Atlas of Human Anatomy</i> (7th ed.). Gait kinematics follow Winter, <i>Biomechanics and Motor Control of Human Movement</i>.</p>
+      <p class="src warn">This is a study aid. It is a stylised model, not a patient-specific or diagnostic image, and must not be used for clinical decision-making.</p>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
